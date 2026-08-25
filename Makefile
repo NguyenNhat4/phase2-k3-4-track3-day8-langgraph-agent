@@ -1,13 +1,12 @@
 .PHONY: install test lint typecheck run-scenarios grade-local clean
 
-# Use uv's managed environment for every target. The OpenAI extra matches the
-# provider configured by the lab's .env; change it to google or anthropic when
-# using another provider.
+# Use uv's managed environment for every target. Provider packages are added
+# only to the scenario target so unit tests do not need an LLM dependency.
 UV_CACHE_DIR ?= .uv-cache
-UV_RUN := UV_CACHE_DIR=$(UV_CACHE_DIR) uv run --extra dev --extra openai
+UV_RUN := UV_CACHE_DIR=$(UV_CACHE_DIR) uv run --extra dev
 
 install:
-	UV_CACHE_DIR=$(UV_CACHE_DIR) uv sync --extra dev --extra openai
+	UV_CACHE_DIR=$(UV_CACHE_DIR) uv sync --extra dev
 
 test:
 	$(UV_RUN) pytest
@@ -19,7 +18,7 @@ typecheck:
 	$(UV_RUN) mypy src
 
 run-scenarios:
-	$(UV_RUN) python -m langgraph_agent_lab.cli run-scenarios --config configs/lab.yaml --output outputs/metrics.json
+	UV_CACHE_DIR=$(UV_CACHE_DIR) uv run --extra dev --extra openai python -m langgraph_agent_lab.cli run-scenarios --config configs/lab.yaml --output outputs/metrics.json
 
 grade-local:
 	$(UV_RUN) python -m langgraph_agent_lab.cli validate-metrics --metrics outputs/metrics.json
