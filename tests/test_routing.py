@@ -12,6 +12,15 @@ from langgraph_agent_lab.routing import (
     route_after_evaluate,
     route_after_retry,
 )
+from langgraph_agent_lab.nodes import _high_confidence_route
+
+
+@pytest.mark.parametrize("query", [
+    "Refund this customer and send confirmation email",
+    "Delete customer account after support verification",
+])
+def test_explicit_side_effects_require_risky_route(query):
+    assert _high_confidence_route(query) == Route.RISKY.value
 from langgraph_agent_lab.state import Route
 
 

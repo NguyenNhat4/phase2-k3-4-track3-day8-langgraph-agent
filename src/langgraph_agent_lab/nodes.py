@@ -19,6 +19,24 @@ from .llm import get_llm
 from .state import AgentState, make_event
 
 
+def _high_confidence_route(query: str) -> str | None:
+    """Return a safety-critical route when the request contains an explicit cue."""
+    text = query.casefold()
+    risky_terms = (
+        "refund", "delete", "delet", "cancel", "send email", "send confirmation",
+        "change data", "close account", "remove account",
+    )
+    if any(term in text for term in risky_terms):
+        return "risky"
+    if any(term in text for term in ("timeout", "system failure", "transient failure")):
+        return "error"
+    if any(term in text for term in ("lookup", "look up", "status", "search", "find")):
+        return "tool"
+    if text in {"fix it", "help", "can you fix it?"}:
+        return "missing_info"
+    return None
+
+
 # ─── EXAMPLE: working node (provided for reference) ──────────────────
 def intake_node(state: AgentState) -> dict:
     """Normalize raw query. This node is provided as a working example."""
@@ -53,6 +71,21 @@ def classify_node(state: AgentState) -> dict:
         route: str = Field(description="One of simple, tool, missing_info, risky, error")
 
     query = state.get("query", "")
+    guarded_route = _high_confidence_route(query)
+    if guarded_route:
+        return {
+            "route": guarded_route,
+            "risk_level": "high" if guarded_route == "risky" else "low",
+            "events": [
+                make_event(
+                    "classify",
+                    "completed",
+                    f"classified as {guarded_route}",
+                    route=guarded_route,
+                    classifier="safety_guard",
+                )
+            ],
+        }
     prompt = f"""Classify this support request into exactly one route.
 
 Routes: risky means side effects; tool means an information lookup; missing_info means vague or incomplete; error means system failure; simple means directly answerable.
