@@ -193,6 +193,7 @@ Pick one or more:
 - **Parallel fan-out**: Use `Send()` for concurrent tool calls
 - **Real HITL**: `LANGGRAPH_INTERRUPT=true` with `interrupt()`
 - **Streamlit UI**: Build approval/reject interface
+- **Streamlit UI**: `uv run --extra ui streamlit run streamlit_app.py` opens a real interrupt/resume approval flow.
 - **Time travel**: `get_state_history()` replay
 - **Crash recovery**: SQLite checkpoint survives process kill
 - **Graph diagram**: `graph.get_graph().draw_mermaid()`
