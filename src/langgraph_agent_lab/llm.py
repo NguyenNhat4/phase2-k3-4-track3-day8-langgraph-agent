@@ -12,6 +12,24 @@ Usage in nodes:
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+
+def _load_local_env() -> None:
+    """Load simple KEY=value entries without requiring a runtime dependency."""
+    env_file = Path(__file__).resolve().parents[2] / ".env"
+    if not env_file.is_file():
+        return
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key.strip(), value)
+
+
+_load_local_env()
 
 
 def get_llm(model: str | None = None, temperature: float = 0.0):
