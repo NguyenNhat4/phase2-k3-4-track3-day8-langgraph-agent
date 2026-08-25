@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -25,6 +26,9 @@ def run_scenarios(
     output: Annotated[Path, typer.Option("--output")],
 ) -> None:
     """Run all grading scenarios and write metrics JSON."""
+    # Batch grading must finish each scenario. Real interrupt/resume is owned
+    # by the Streamlit entrypoint; the CLI uses the deterministic mock approval.
+    os.environ["LANGGRAPH_INTERRUPT"] = "false"
     cfg = yaml.safe_load(config.read_text(encoding="utf-8"))
     scenarios = load_scenarios(cfg["scenarios_path"])
     checkpointer = build_checkpointer(cfg.get("checkpointer", "memory"), cfg.get("database_url"))
