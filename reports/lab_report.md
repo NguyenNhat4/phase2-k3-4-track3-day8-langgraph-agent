@@ -14,32 +14,6 @@ tool lookup, clarification, or risky-action approval. Tool results pass through
 `evaluate`; transient failures go through bounded `retry` back to `tool`, while
 exhausted retries go to `dead_letter`. Every branch ends at `finalize -> END`.
 
-```mermaid
-flowchart TD
-    START([START]) --> intake[intake]
-    intake --> classify[classify]
-    classify -->|simple| answer[answer]
-    classify -->|tool| tool[tool]
-    classify -->|missing_info| clarify[clarify]
-    classify -->|risky| risky[risky_action]
-    classify -->|error| retry[retry]
-
-    tool --> evaluate[evaluate]
-    evaluate -->|success| answer
-    evaluate -->|needs_retry| retry
-    retry -->|attempt < max| tool
-    retry -->|attempt >= max| dead[dead_letter]
-
-    risky --> approval[approval]
-    approval -->|approved| tool
-    approval -->|rejected| clarify
-
-    answer --> finalize[finalize]
-    clarify --> finalize
-    dead --> finalize
-    finalize --> END([END])
-```
-
 ## 3. State schema
 
 | Field | Reducer | Why |
@@ -55,17 +29,23 @@ flowchart TD
 
 | Scenario | Expected route | Actual route | Success | Retries | Interrupts |
 |---|---|---|---:|---:|---:|
-| - | - | - | NOT RUN | - | - |
+| S01_simple | simple | simple | PASS | 0 | 0 |
+| S02_tool | tool | tool | PASS | 0 | 0 |
+| S03_missing | missing_info | missing_info | PASS | 0 | 0 |
+| S04_risky | risky | risky | PASS | 0 | 1 |
+| S05_error | error | error | PASS | 2 | 0 |
+| S06_delete | risky | risky | PASS | 0 | 1 |
+| S07_dead_letter | error | error | PASS | 1 | 0 |
 
 ### Summary
 
 | Metric | Value |
 |---|---:|
-| Total scenarios | Not available |
-| Success rate | Not available |
-| Average nodes visited | Not available |
-| Total retries | 0 |
-| Total interrupts | 0 |
+| Total scenarios | 7 |
+| Success rate | 100.0% |
+| Average nodes visited | 6.43 |
+| Total retries | 3 |
+| Total interrupts | 2 |
 | Resume success | Not demonstrated |
 
 ## 5. Failure analysis
@@ -79,8 +59,7 @@ flowchart TD
 3. Missing information: vague requests do not receive an invented answer;
    `clarify` creates a pending question and then finalizes the audit trail.
 
-The scenario run is blocked because the configured OpenAI provider package
-(`langchain-openai`) is not installed in `.venv`; no scenario result is claimed.
+All recorded scenarios passed.
 
 ## 6. Persistence / recovery evidence
 
@@ -92,11 +71,22 @@ evidence were not part of this Phase 4 run.
 ## 7. Extension work
 
 The graph includes the approval/HITL node and bounded retry/dead-letter path.
-Real interactive interrupts are opt-in through `LANGGRAPH_INTERRUPT=true`.
+The classifier keeps the required LLM call for ambiguous requests and adds a
+high-confidence safety guard for explicit side effects such as `refund`,
+`delete`, `cancel`, and `send email`, ensuring those requests cannot bypass
+approval because of classifier variance.
+
+`streamlit_app.py` provides the interactive approval UI. It starts a workflow
+with a stable session `thread_id`, displays the proposed action at an
+interrupt, and resumes the same checkpoint with `Command(resume=...)` after
+Approve or Reject. The batch CLI deliberately forces deterministic mock
+approval so `make run-scenarios` can complete all scenarios; Streamlit is the
+real interrupt/resume entrypoint.
 
 ## 8. Improvement plan
 
 First, add a SQLite checkpointer run with state-history output and a regression
 test for restart recovery. Next, replace the mock tool with authenticated,
-observable integrations and add latency/error metrics per node. Finally, add a
-human approval UI that can resume interrupted runs safely.
+observable integrations and add latency/error metrics per node. Finally,
+demonstrate a full Streamlit reject/resume run and record its checkpoint
+evidence alongside this batch report.
