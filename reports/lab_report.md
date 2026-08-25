@@ -1,55 +1,4 @@
-"""Report generation helper.
-
-TODO(student): implement report rendering using MetricsReport data
-and the template in reports/lab_report_template.md.
-"""
-
-from __future__ import annotations
-
-from pathlib import Path
-
-from .metrics import MetricsReport
-
-
-def render_report(metrics: MetricsReport) -> str:
-    """Render a complete lab report from metrics data.
-
-    TODO(student): Generate a report that includes:
-    1. Metrics summary table (total scenarios, success rate, retries, interrupts)
-    2. Per-scenario results table
-    3. Architecture explanation (your graph design, state schema, reducers)
-    4. Failure analysis (at least two failure modes you considered)
-    5. Improvement plan
-
-    Use reports/lab_report_template.md as your guide.
-
-    Return: formatted markdown string
-    """
-    def pct(value: float) -> str:
-        return f"{value:.1%}"
-
-    rows = []
-    for item in metrics.scenario_metrics:
-        rows.append(
-            "| {id} | {expected} | {actual} | {success} | {retries} | {interrupts} |".format(
-                id=item.scenario_id,
-                expected=item.expected_route,
-                actual=item.actual_route or "-",
-                success="PASS" if item.success else "FAIL",
-                retries=item.retry_count,
-                interrupts=item.interrupt_count,
-            )
-        )
-    scenario_table = "\n".join(rows) or "| - | - | - | - | - | - |"
-    failed = [item for item in metrics.scenario_metrics if not item.success]
-    resume_status = "PASS" if metrics.resume_success else "Not demonstrated"
-    failure_note = (
-        "All recorded scenarios passed."
-        if not failed
-        else "Failed scenarios: " + ", ".join(item.scenario_id for item in failed) + "."
-    )
-
-    return f"""# Day 08 Lab Report
+# Day 08 Lab Report
 
 ## 1. Team / student
 
@@ -64,6 +13,32 @@ The workflow is a LangGraph `StateGraph` with a single entry path:
 tool lookup, clarification, or risky-action approval. Tool results pass through
 `evaluate`; transient failures go through bounded `retry` back to `tool`, while
 exhausted retries go to `dead_letter`. Every branch ends at `finalize -> END`.
+
+```mermaid
+flowchart TD
+    START([START]) --> intake[intake]
+    intake --> classify[classify]
+    classify -->|simple| answer[answer]
+    classify -->|tool| tool[tool]
+    classify -->|missing_info| clarify[clarify]
+    classify -->|risky| risky[risky_action]
+    classify -->|error| retry[retry]
+
+    tool --> evaluate[evaluate]
+    evaluate -->|success| answer
+    evaluate -->|needs_retry| retry
+    retry -->|attempt < max| tool
+    retry -->|attempt >= max| dead[dead_letter]
+
+    risky --> approval[approval]
+    approval -->|approved| tool
+    approval -->|rejected| clarify
+
+    answer --> finalize[finalize]
+    clarify --> finalize
+    dead --> finalize
+    finalize --> END([END])
+```
 
 ## 3. State schema
 
@@ -80,18 +55,18 @@ exhausted retries go to `dead_letter`. Every branch ends at `finalize -> END`.
 
 | Scenario | Expected route | Actual route | Success | Retries | Interrupts |
 |---|---|---|---:|---:|---:|
-{scenario_table}
+| - | - | - | NOT RUN | - | - |
 
 ### Summary
 
 | Metric | Value |
 |---|---:|
-| Total scenarios | {metrics.total_scenarios} |
-| Success rate | {pct(metrics.success_rate)} |
-| Average nodes visited | {metrics.avg_nodes_visited:.2f} |
-| Total retries | {metrics.total_retries} |
-| Total interrupts | {metrics.total_interrupts} |
-| Resume success | {resume_status} |
+| Total scenarios | Not available |
+| Success rate | Not available |
+| Average nodes visited | Not available |
+| Total retries | 0 |
+| Total interrupts | 0 |
+| Resume success | Not demonstrated |
 
 ## 5. Failure analysis
 
@@ -104,7 +79,8 @@ exhausted retries go to `dead_letter`. Every branch ends at `finalize -> END`.
 3. Missing information: vague requests do not receive an invented answer;
    `clarify` creates a pending question and then finalizes the audit trail.
 
-{failure_note}
+The scenario run is blocked because the configured OpenAI provider package
+(`langchain-openai`) is not installed in `.venv`; no scenario result is claimed.
 
 ## 6. Persistence / recovery evidence
 
@@ -124,11 +100,3 @@ First, add a SQLite checkpointer run with state-history output and a regression
 test for restart recovery. Next, replace the mock tool with authenticated,
 observable integrations and add latency/error metrics per node. Finally, add a
 human approval UI that can resume interrupted runs safely.
-"""
-
-
-def write_report(metrics: MetricsReport, output_path: str | Path) -> None:
-    """Write the rendered report to a file."""
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_report(metrics), encoding="utf-8")
